@@ -14,6 +14,7 @@
 - 📦 **构建产物检查** - 检测 source map 泄露、环境变量暴露到客户端
 - 🌐 **HTML 安全检查** - 检测 CDN 资源缺少 SRI、缺少 CSP 策略
 - 🔗 **依赖漏洞预警** - 自动检查项目依赖中的已知安全漏洞
+- 🛠️ **自定义规则** - 可添加自定义规则，对项目进行深度扫描
 
 ## 安装
 
@@ -392,6 +393,27 @@ console.log(findings)
 - `.vue` - Vue 单文件组件
 - `.mjs` / `.cjs` - ES Module / CommonJS
 
+## severityThreshold 配置说明
+
+`severityThreshold` 控制两个行为：
+
+1. **报告输出过滤**：只输出指定级别及以上的问题
+2. **构建失败判断**（需配合 `failOnError: true`）：只有指定级别及以上问题才会阻断构建
+
+```ts
+viteSecurityScan({
+  severityThreshold: 'high', // 只报告和拦截 high 级别问题
+  failOnError: true,
+  reporter: 'summary'
+})
+```
+
+| `severityThreshold` 值 | 报告输出 | 构建失败条件 |
+|---|---|---|
+| `'low'`（默认） | 所有 low + medium + high | 有任何问题即失败 |
+| `'medium'` | medium + high | medium 或 high 时失败 |
+| `'high'` | 仅 high | high 时失败 |
+
 ## 兼容性
 
 - Vite >= 4.0.0
@@ -448,6 +470,27 @@ viteSecurityScan({
 })
 ```
 
+### 跳过特定行的安全检查
+
+使用 `@security-ignore` 注释可以跳过某一行或代码块的安全扫描：
+
+```vue
+<template>
+  <!-- @security-ignore -->
+  <div v-html="trustedContent"></div>
+</template>
+
+<script setup>
+// @security-ignore
+const html = document.createElement('script') // 此行不会被扫描
+</script>
+```
+
+支持的注释格式：
+- `// @security-ignore` — JavaScript 单行注释
+- `/* @security-ignore */` — JavaScript 多行注释
+- `<!-- @security-ignore -->` — HTML/Vue 模板注释
+
 ### 关闭非代码层检查
 
 ```ts
@@ -457,6 +500,8 @@ viteSecurityScan({
   checkDependencies: false
 })
 ```
+
+
 
 ## 开发
 

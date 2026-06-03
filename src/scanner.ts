@@ -305,6 +305,13 @@ export function scanCode(
       const node = path.node as AstNode | undefined;
       if (!node) return;
 
+      // 将 Babel NodePath 的 parent 信息挂载到 node 上，
+      // 使规则可以通过 node.parent 访问父节点（如判断 fetch 调用上下文）
+      const parentPath = path.parentPath as Record<string, unknown> | undefined;
+      if (parentPath?.node) {
+        node.parent = parentPath.node as AstNode;
+      }
+
       const rule = matchRules(node, context, activeRules);
       if (rule) {
         const loc = node.loc as { start: { line: number; column: number } } | undefined;
