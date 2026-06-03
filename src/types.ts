@@ -1,7 +1,13 @@
+/** AST 节点基础类型 — 允许规则代码访问任意嵌套属性 */
+export interface AstNode {
+  type: string;
+  [key: string]: unknown;
+}
+
 export interface SecurityRule {
   name: string;
   severity: "low" | "medium" | "high";
-  match: (node: any, context: RuleContext) => boolean;
+  match: (node: AstNode, context: RuleContext) => boolean;
   message: string;
   /** 修复建议 */
   fix?: string;
@@ -55,14 +61,3 @@ export interface PluginOptions {
   /** 是否检查依赖漏洞 */
   checkDependencies?: boolean;
 }
-
-export type ViteSecurityScan = {
-  name: string;
-  enforce: "pre" | "post";
-  transform(code: string, id: string): any;
-  transformIndexHtml?: (html: string) => any;
-  buildEnd(): void;
-  writeBundle?: (options: any, bundle: any) => void;
-  buildStart?: () => void;
-  handleHotUpdate?: (ctx: any) => any;
-};

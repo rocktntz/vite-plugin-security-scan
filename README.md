@@ -5,7 +5,7 @@
 ## 特性
 
 - 🔍 **AST 深度分析** - 基于 Babel 解析器对源码进行抽象语法树分析，精准定位安全问题
-- 🛡️ **24 条内置规则** - 覆盖 XSS、开放重定向、敏感数据存储、危险 API 调用等常见安全风险
+- 🛡️ **30 条内置规则** - 覆盖 XSS、开放重定向、敏感数据存储、危险 API 调用、原型链污染等常见安全风险
 - ⚡ **无缝集成 Vite** - 作为 Vite 插件零配置接入，不影响构建性能
 - 📊 **多种报告格式** - 支持 console、JSON、summary 三种输出格式
 - 🚫 **构建拦截** - 可配置在发现高/中级安全问题时阻止构建通过
@@ -174,7 +174,7 @@ export default defineConfig({
 | 规则名 | 严重等级 | 说明 |
 |--------|----------|------|
 | `sensitive-storage-localStorage` | 🔴 高 | 检测在 localStorage 中存储 token、密码等敏感信息 |
-| `sensitive-storage-sessionStorage` | 🔴 高 | 检测在 sessionStorage 中存储敏感数据 |
+| `sensitive-storage-sessionStorage` | 🔴 高 | 检测在 sessionStorage 中存储 token、密码等敏感信息（需 key 命中敏感关键词） |
 
 ### 危险 API 调用检测
 
@@ -195,14 +195,14 @@ export default defineConfig({
 
 | 规则名 | 严重等级 | 说明 |
 |--------|----------|------|
-| `unsafe-http-url` | 🔴 高 | 检测 HTTP 明文传输，应使用 HTTPS |
+| `unsafe-http-url` | 🟡 中 | 检测网络请求中使用 HTTP 明文传输（仅在 fetch/axios/request 调用中触发） |
 | `unsafe-cookie-operation` | 🟡 中 | 检测 `document.cookie` 赋值，缺少 secure/httpOnly 保护 |
 
 ### 随机数与加密检测
 
 | 规则名 | 严重等级 | 说明 |
 |--------|----------|------|
-| `unsafe-math-random` | 🔴 高 | 检测 `Math.random()` 用于安全场景，应使用 `crypto.getRandomValues()` |
+| `unsafe-math-random` | 🟡 中 | 检测 `Math.random()` 用于安全场景，应使用 `crypto.getRandomValues()` |
 
 ### DOM 安全检测
 
@@ -210,6 +210,8 @@ export default defineConfig({
 |--------|----------|------|
 | `xss-document-write` | 🔴 高 | 检测 `document.write()` 调用，可被利用进行 XSS |
 | `xss-outerhtml-assignment` | 🔴 高 | 检测 `outerHTML` 赋值，与 innerHTML 类似有 XSS 风险 |
+| `xss-insertAdjacentHTML` | 🔴 高 | 检测 `insertAdjacentHTML()` 调用，可将未过滤 HTML 插入 DOM |
+| `dangerous-dom-script-injection` | 🔴 高 | 检测动态 `document.createElement('script')` 创建脚本元素 |
 | `unsafe-iframe-no-sandbox` | 🟡 中 | 检测 iframe 缺少 `sandbox` 属性 |
 
 ### 跨域与模块安全检测
@@ -217,14 +219,23 @@ export default defineConfig({
 | 规则名 | 严重等级 | 说明 |
 |--------|----------|------|
 | `unsafe-postmessage-handler` | 🟡 中 | 检测 postMessage 监听缺少 origin 来源验证 |
+| `unsafe-postmessage-wildcard` | 🔴 高 | 检测 `postMessage()` 使用通配符 `*` 作为目标源，可能泄露敏感数据 |
 | `unsafe-dynamic-import` | 🟡 中 | 检测动态 `import()` 使用变量参数，可能加载任意模块 |
+
+### 开放重定向（函数调用）
+
+| 规则名 | 严重等级 | 说明 |
+|--------|----------|------|
+| `unsafe-url-redirect` | 🔴 高 | 检测 `location.replace()`/`location.assign()` 调用，可能导致开放重定向 |
 
 ### 正则与代码质量检测
 
 | 规则名 | 严重等级 | 说明 |
 |--------|----------|------|
 | `redos-vulnerable-regex` | 🟡 中 | 检测嵌套量词正则，可能导致 ReDoS 灾难性回溯 |
-| `prototype-pollution` | 🟡 中 | 检测 `Object.assign` 合并不可信对象，存在原型链污染风险 |
+| `unsafe-regexp-constructor` | 🔴 高 | 检测 `new RegExp()` 动态构造正则，参数来自用户输入可导致注入 |
+| `prototype-pollution` | 🟡 中 | 检测 `Object.assign({}, ...)` 合并不可信对象，存在原型链污染风险 |
+| `prototype-pollution-__proto__` | 🔴 高 | 检测直接操作 `__proto__` 属性，可导致原型链污染攻击 |
 | `console-sensitive-info` | 🔵 低 | 检测 console 输出中包含 token、密码等敏感关键词 |
 
 ## 使用示例
@@ -384,7 +395,7 @@ console.log(findings)
 ## 兼容性
 
 - Vite >= 4.0.0
-- Node.js >= 16
+- Node.js >= 18
 
 ## 非代码层安全检查
 

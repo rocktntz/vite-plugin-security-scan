@@ -88,6 +88,15 @@ export class Reporter {
   shouldFail(): boolean {
     if (!this.options.failOnError) return false;
     const result = this.getResult();
-    return result.high > 0 || result.medium > 0;
+    const threshold = this.options.severityThreshold || "low";
+    
+    if (threshold === "high") {
+      return result.high > 0;
+    }
+    if (threshold === "medium") {
+      return result.high > 0 || result.medium > 0;
+    }
+    // threshold === "low"
+    return result.total > 0;
   }
 }

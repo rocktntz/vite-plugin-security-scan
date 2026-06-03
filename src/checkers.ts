@@ -7,7 +7,7 @@ import * as path from "path";
  * 检测 source map 文件泄露和环境变量暴露
  */
 export function checkBuildOutput(
-  bundle: Record<string, any>,
+  bundle: Record<string, unknown>,
 ): SecurityFinding[] {
   const findings: SecurityFinding[] = [];
 
@@ -24,8 +24,9 @@ export function checkBuildOutput(
     }
 
     // 检测 JS 产物中的环境变量泄露
-    if ((fileName.endsWith(".js") || fileName.endsWith(".mjs")) && chunk.code) {
-      const code = chunk.code as string;
+    const chunkRecord = chunk as Record<string, unknown>;
+    if ((fileName.endsWith(".js") || fileName.endsWith(".mjs")) && chunkRecord.code) {
+      const code = chunkRecord.code as string;
 
       // 检测未替换的 process.env 引用
       if (code.includes("process.env")) {
@@ -247,6 +248,9 @@ export function checkDependencies(rootDir: string): SecurityFinding[] {
     }
   } catch (e) {
     // 解析失败静默忽略
+    if (process.env.VITE_PLUGIN_SECURITY_SCAN_DEBUG) {
+      console.warn("[vite-plugin-security-scan] 依赖检查解析失败:", e instanceof Error ? e.message : e);
+    }
   }
 
   return findings;

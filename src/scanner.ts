@@ -1,9 +1,12 @@
 import * as parser from "@babel/parser";
 import traverseModule from "@babel/traverse";
-import { SecurityFinding, SecurityRule, RuleContext } from "./types";
+import { SecurityFinding, SecurityRule, RuleContext, AstNode } from "./types";
 import { matchRules } from "./rules";
 
-const traverse = (traverseModule.default || traverseModule) as any;
+const traverse = (traverseModule.default || traverseModule) as (
+  ast: unknown,
+  visitors: Record<string, (path: AstNode) => void>,
+) => void;
 
 const vueExtensions = [".vue"];
 const jsExtensions = [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"];
@@ -17,18 +20,6 @@ function shouldProcess(filename: string): boolean {
  */
 function cleanFilePath(id: string): string {
   return id.split("?")[0];
-}
-
-/**
- * 计算 Vue SFC 中 <script> 块的起始行偏移量
- */
-function getVueScriptOffset(code: string): number {
-  const scriptMatch = code.match(/^([\s\S]*?)<script[^>]*>/m);
-  if (scriptMatch) {
-    const beforeScript = scriptMatch[0];
-    return (beforeScript.match(/\n/g) || []).length;
-  }
-  return 0;
 }
 
 /**
@@ -111,14 +102,54 @@ function scanVueTemplate(
 
   // 检查规则是否激活的辅助函数
   const isRuleActive = (ruleName: string): SecurityRule | undefined => {
-    const rulesToCheck = activeRules;
-    if (!rulesToCheck) return undefined;
-    return rulesToCheck.find((r) => r.name === ruleName);
+    if (!activeRules) return undefined;
+    return activeRules.find((r) => r.name === ruleName);
   };
+
+  // 预处理：提取每行中非注释部分，标记纯注释行
+  const commentedLines = new Set<number>();
+  let inComment = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    let stripped = "";
+    let searchFrom = 0;
+
+    while (searchFrom < line.length) {
+      if (inComment) {
+        const endIdx = line.indexOf("-->", searchFrom);
+        if (endIdx === -1) {
+          // 该行剩余部分都在注释内，跳过
+          break;
+        } else {
+          inComment = false;
+          searchFrom = endIdx + 3;
+        }
+      } else {
+        const startIdx = line.indexOf("<!--", searchFrom);
+        if (startIdx === -1) {
+          // 该行剩余部分不在注释内
+          stripped += line.substring(searchFrom);
+          break;
+        } else {
+          stripped += line.substring(searchFrom, startIdx);
+          inComment = true;
+          searchFrom = startIdx + 4;
+        }
+      }
+    }
+
+    // 如果去除注释后该行无实际内容，标记为注释行
+    if (stripped.trim() === "") {
+      commentedLines.add(i);
+    }
+  }
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const lineNum = i + 1 + lineOffset;
+
+    // 跳过 HTML 注释行
+    if (commentedLines.has(i)) continue;
 
     // 支持 @security-ignore 跳过
     if (line.includes(IGNORE_COMMENT)) continue;
@@ -143,8 +174,6 @@ function scanVueTemplate(
     // 检测 target="_blank" 缺少 rel="noopener noreferrer"
     const linkRule = isRuleActive("unsafe-link-target");
     if (linkRule && /target\s*=\s*["']_blank["']/.test(line)) {
-      // 检查同一标签是否有 rel="noopener"
-      // 简单方式：向上/向下搜索同一标签
       if (!/rel\s*=\s*["'][^"']*noopener[^"']*["']/.test(line)) {
         findings.push({
           rule: "unsafe-link-target",
@@ -261,21 +290,25 @@ export function scanCode(
   // 收集源码中 @security-ignore 标记的行号
   const ignoredLines = getIgnoredLines(code);
 
-  let ast: any;
+  let ast: ReturnType<typeof parser.parse>;
   try {
     ast = parser.parse(codeToParse, {
       sourceType: "module",
       plugins: ["typescript", "jsx"],
     });
-  } catch (e) {
+  } catch {
     return findings;
   }
 
-  traverse(ast, {
-    enter(path: any) {
-      const rule = matchRules(path.node, context, activeRules);
+  traverse(ast as unknown as Record<string, unknown>, {
+    enter(path: Record<string, unknown>) {
+      const node = path.node as AstNode | undefined;
+      if (!node) return;
+
+      const rule = matchRules(node, context, activeRules);
       if (rule) {
-        const location = path.node.loc?.start || { line: 1, column: 0 };
+        const loc = node.loc as { start: { line: number; column: number } } | undefined;
+        const location = loc?.start || { line: 1, column: 0 };
         const originalLine = location.line + lineOffset;
 
         // 跳过带 @security-ignore 注释的行
