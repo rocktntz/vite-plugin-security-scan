@@ -728,7 +728,7 @@ export const rules: SecurityRule[] = [
   },
   {
     name: "unsafe-regexp-constructor",
-    severity: "high",
+    severity: "medium",
     message:
       "使用 new RegExp() 动态构造正则表达式：若参数来自用户输入，可导致 ReDoS 攻击或正则注入。",
     fix: "避免使用 new RegExp(userInput)；若必须动态构建，对输入进行严格校验和转义（使用 lodash.escapeRegExp 等）。",
@@ -741,7 +741,35 @@ export const rules: SecurityRule[] = [
       const patternArg = args[0];
       // 如果参数是字符串字面量则安全（静态正则）
       if (patternArg.type === "StringLiteral") return false;
-      // 变量、模板字面量等动态来源不安全
+      // 如果参数是无表达式的模板字面量（纯静态字符串）则安全
+      if (
+        patternArg.type === "TemplateLiteral" &&
+        (!(patternArg.expressions as unknown[]) || (patternArg.expressions as unknown[]).length === 0)
+      )
+        return false;
+      // 常量风格标识符（全大写或包含 PATTERN/REGEX/PATTERN 等关键词）视为安全
+      if (patternArg.type === "Identifier") {
+        const varName = ((patternArg.name as string) || "").toUpperCase();
+        // 全大写常量（如 REGEX_PATTERN, EMAIL_RE）通常来自预定义
+        if (varName === varName.replace(/[^A-Z0-9_]/g, "") && varName.length > 0) return false;
+        // 变量名包含 pattern/regex/re 等关键词，通常是预定义正则
+        if (/(PATTERN|REGEX|REGEXP|_RE$|_REGEX$|_REGEXP$|_PATTERN$)/.test(varName)) return false;
+      }
+      // 从常量/配置对象访问属性（如 config.pattern, patterns.email）视为安全
+      if (patternArg.type === "MemberExpression") {
+        const obj = patternArg.object as AstNode | undefined;
+        if (obj?.type === "Identifier") {
+          const objName = ((obj.name as string) || "").toLowerCase();
+          // 访问 config/constants/patterns/rules/options 等配置对象的属性
+          if (/^(config|constants?|patterns?|rules?|options?|settings?|regex|regexp)$/.test(objName)) return false;
+        }
+      }
+      // 经过 escapeRegExp 等转义函数处理的调用视为安全
+      if (patternArg.type === "CallExpression") {
+        const callName = getCallExprName(patternArg);
+        if (callName && /(escape|sanitize|escapeRegExp|escapeRegex|escapePattern)/i.test(callName)) return false;
+      }
+      // 其他动态来源（直接的变量、函数返回值、带表达式的模板等）不安全
       return true;
     },
   },

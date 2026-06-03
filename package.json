@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-security-scan",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Vite plugin for scanning security risks in frontend code",
   "main": "dist/index.js",
   "module": "dist/index.mjs",

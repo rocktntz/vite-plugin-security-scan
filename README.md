@@ -234,7 +234,7 @@ export default defineConfig({
 | 规则名 | 严重等级 | 说明 |
 |--------|----------|------|
 | `redos-vulnerable-regex` | 🟡 中 | 检测嵌套量词正则，可能导致 ReDoS 灾难性回溯 |
-| `unsafe-regexp-constructor` | 🔴 高 | 检测 `new RegExp()` 动态构造正则，参数来自用户输入可导致注入 |
+| `unsafe-regexp-constructor` | 🟡 中 | 检测 `new RegExp()` 动态构造正则，参数来自用户输入可导致注入；已排除常量、配置对象访问、转义函数等安全场景 |
 | `prototype-pollution` | 🟡 中 | 检测 `Object.assign({}, ...)` 合并不可信对象，存在原型链污染风险 |
 | `prototype-pollution-__proto__` | 🔴 高 | 检测直接操作 `__proto__` 属性，可导致原型链污染攻击 |
 | `console-sensitive-info` | 🔵 低 | 检测 console 输出中包含 token、密码等敏感关键词 |
